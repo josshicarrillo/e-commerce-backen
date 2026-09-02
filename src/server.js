@@ -1,29 +1,20 @@
 import app from './app.js';
+import { connectDB } from './config/db.js';
 import { config } from './config/env.js';
-import mongoose from 'mongoose';
 
 const PORT = config.port;
 
 const start = async () => {
-  try {
-    if (!config.mongoUrl) {
-      console.warn('MONGO_URL no está definido. La app arrancará sin conexión a MongoDB.');
-    } else {
-      await mongoose.connect(config.mongoUrl, {
-        serverSelectionTimeoutMS: 5000,
-      });
-      console.log('Conectado a MongoDB');
+  const connected = await connectDB();
+
+  app.listen(PORT, () => {
+    if (connected) {
+      console.log(`Servidor activo en http://localhost:${PORT}`);
+      return;
     }
 
-    app.listen(PORT, () => {
-      console.log(`Servidor activo en http://localhost:${PORT}`);
-    });
-  } catch (err) {
-    console.error('MongoDB no está disponible. Inicia MongoDB y revisa tu MONGO_URL.', err.message);
-    app.listen(PORT, () => {
-      console.log(`Servidor activo en http://localhost:${PORT} sin conexión a MongoDB.`);
-    });
-  }
+    console.log(`Servidor activo en http://localhost:${PORT} sin conexión a MongoDB.`);
+  });
 };
 
 start();

@@ -1,4 +1,7 @@
-import { registerUserService } from '../services/sessions.service.js';
+import {
+  registerUserService,
+  loginUserService,
+} from '../services/sessions.service.js';
 
 export const getSessionsController = (req, res) => {
   return res.status(200).json({
@@ -11,12 +14,10 @@ export const registerController = async (req, res) => {
   try {
     const { first_name, last_name, email, password } = req.body;
 
-    // validations
     if (!first_name || !last_name || !email || !password) {
       return res.status(400).json({ status: 'error', message: 'Missing required fields' });
     }
 
-    // email format basic check
     const emailNormalized = String(email).trim().toLowerCase();
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(emailNormalized)) {
@@ -37,4 +38,53 @@ export const registerController = async (req, res) => {
     console.error(err);
     return res.status(500).json({ status: 'error', message: 'Internal server error' });
   }
+};
+
+export const loginController = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ status: 'error', message: 'Credenciales inválidas' });
+    }
+
+    const user = await loginUserService({ email, password });
+    if (!user) {
+      return res.status(401).json({ status: 'error', message: 'Credenciales inválidas' });
+    }
+
+    const token = user.token;
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    res.cookie('currentUser', token, {
+      httpOnly: true,
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 1000,
+      secure: isProduction,
+    });
+
+    return res.status(200).json({
+      status: 'success',
+      message: 'Login correcto',
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(401).json({ status: 'error', message: 'Credenciales inválidas' });
+  }
+};
+
+export const currentController = (req, res) => {
+  return res.status(200).json({
+    status: 'success',
+    payload: req.user,
+  });
+};
+
+export const logoutController = (req, res) => {
+  res.clearCookie('currentUser');
+
+  return res.status(200).json({
+    status: 'success',
+    message: 'Sesión cerrada',
+  });
 };
