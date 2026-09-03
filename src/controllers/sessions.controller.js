@@ -10,7 +10,7 @@ export const getSessionsController = (req, res) => {
   });
 };
 
-export const registerController = async (req, res) => {
+export const registerController = async (req, res, next) => {
   try {
     const { first_name, last_name, email, password } = req.body;
 
@@ -32,11 +32,7 @@ export const registerController = async (req, res) => {
 
     return res.status(201).json({ status: 'success', payload: created });
   } catch (err) {
-    if (err.code === 'EMAIL_EXISTS') {
-      return res.status(409).json({ status: 'error', message: 'Email already registered' });
-    }
-    console.error(err);
-    return res.status(500).json({ status: 'error', message: 'Internal server error' });
+    return next(err);
   }
 };
 

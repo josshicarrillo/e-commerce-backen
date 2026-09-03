@@ -75,6 +75,43 @@ test('POST /api/sessions/login genera cookie currentUser con JWT', async () => {
   }
 });
 
+test('POST /api/sessions/register devuelve 409 ante duplicado detectado por Mongo', async () => {
+  const { server, port } = await getServer();
+  const originalFindByEmail = usersRepository.findByEmail;
+  const originalCreate = usersRepository.create;
+
+  try {
+    usersRepository.findByEmail = async () => null;
+    usersRepository.create = async () => {
+      const error = new Error('E11000 duplicate key error');
+      error.code = 11000;
+      throw error;
+    };
+
+    const response = await fetch(`http://localhost:${port}/api/sessions/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        first_name: 'Ana',
+        last_name: 'Pérez',
+        email: 'ana@mail.com',
+        password: 'Secreta123',
+      }),
+    });
+    const payload = await response.json();
+
+    assert.equal(response.status, 409);
+    assert.deepEqual(payload, {
+      status: 'error',
+      message: 'Email already registered',
+    });
+  } finally {
+    usersRepository.findByEmail = originalFindByEmail;
+    usersRepository.create = originalCreate;
+    server.close();
+  }
+});
+
 test('GET /api/sessions/current devuelve datos del usuario autenticado', async () => {
   const { server, port } = await getServer();
   const token = signToken({ id: 'user-123', email: 'ana@mail.com', role: 'user' });
