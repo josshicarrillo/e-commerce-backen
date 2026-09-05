@@ -10,6 +10,7 @@ Backend para la plataforma de eventos y colecciones de Helen Collection, con API
 - JWT
 - bcryptjs
 - Passport.js + passport-local + passport-jwt
+- Roles: `user`, `organizer` y `admin`
 - dotenv
 
 ## Instalación
@@ -55,6 +56,8 @@ src/
 │   ├── events.controller.js
 │   └── sessions.controller.js
 ├── middlewares/
+│   ├── auth.middleware.js
+│   ├── authorize.middleware.js
 │   ├── errorHandler.middleware.js
 │   └── notFound.middleware.js
 ├── models/
@@ -87,6 +90,27 @@ src/
 | POST | /api/sessions/login | Inicio de sesión con JWT en cookie |
 | GET | /api/sessions/current | Devuelve el usuario autenticado |
 | POST | /api/sessions/logout | Cierra la sesión |
+| POST | /api/events | Crea un evento: organizer o admin |
+| PUT | /api/events/:id | Modifica un evento propio: organizer; cualquiera: admin |
+| DELETE | /api/events/:id | Cancela un evento propio: organizer; cualquiera: admin |
+| GET | /api/users | Lista usuarios: solo admin |
+
+## Roles y autorización
+
+| Acción | user | organizer | admin |
+| --- | --- | --- | --- |
+| Consultar eventos publicados | Sí | Sí | Sí |
+| Crear eventos | No | Sí | Sí |
+| Modificar o cancelar eventos propios | No | Sí | Sí |
+| Modificar cualquier evento | No | No | Sí |
+| Ver todos los usuarios | No | No | Sí |
+
+Las rutas privadas usan `authMiddleware`, que valida el JWT de `currentUser` y
+responde `401 No autenticado` si no existe una sesión válida. Luego
+`authorize(...roles)` verifica permisos y responde `403 No tenés permisos para
+realizar esta acción` cuando el usuario está autenticado pero su rol no alcanza.
+El registro público siempre asigna `user`; no acepta crear `organizer` o `admin`
+desde el body.
 
 ## Registro
 

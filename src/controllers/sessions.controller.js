@@ -1,10 +1,20 @@
 import { signToken } from '../utils/jwt.js';
+import { usersRepository } from '../repositories/users.repository.js';
 
 export const getSessionsController = (req, res) => {
   return res.status(200).json({
     status: 'success',
     payload: [],
   });
+};
+
+export const getUsersController = async (req, res, next) => {
+  try {
+    const users = await usersRepository.findAll();
+    return res.status(200).json({ status: 'success', payload: users });
+  } catch (error) {
+    return next(error);
+  }
 };
 
 export const registerController = (req, res) => {

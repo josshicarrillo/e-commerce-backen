@@ -195,3 +195,93 @@ test('POST /api/sessions/logout elimina la cookie currentUser', async () => {
     server.close();
   }
 });
+
+const authCookie = (user) => `currentUser=${signToken(user)}`;
+
+test('POST /api/events diferencia 401, 403 y creación autorizada', async () => {
+  const { server, port } = await getServer();
+
+  try {
+    const withoutSession = await fetch(`http://localhost:${port}/api/events`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'Sin sesión' }),
+    });
+    const userResponse = await fetch(`http://localhost:${port}/api/events`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Cookie: authCookie({ id: 'user-123', email: 'user@mail.com', role: 'user' }),
+      },
+      body: JSON.stringify({ title: 'Solo organizer' }),
+    });
+    const organizerResponse = await fetch(`http://localhost:${port}/api/events`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Cookie: authCookie({ id: 'organizer-123', email: 'org@mail.com', role: 'organizer' }),
+      },
+      body: JSON.stringify({ title: 'Evento autorizado' }),
+    });
+
+    assert.equal(withoutSession.status, 401);
+    assert.equal(userResponse.status, 403);
+    assert.equal(organizerResponse.status, 201);
+    assert.equal((await organizerResponse.json()).payload.organizer, 'organizer-123');
+  } finally {
+    server.close();
+  }
+});
+
+test('GET /api/users solo permite el rol admin', async () => {
+  const { server, port } = await getServer();
+  const originalFindAll = usersRepository.findAll;
+
+  try {
+    usersRepository.findAll = async () => [{ id: 'user-123', email: 'user@mail.com', role: 'user' }];
+
+    const organizerResponse = await fetch(`http://localhost:${port}/api/users`, {
+      headers: { Cookie: authCookie({ id: 'organizer-123', email: 'org@mail.com', role: 'organizer' }) },
+    });
+    const adminResponse = await fetch(`http://localhost:${port}/api/users`, {
+      headers: { Cookie: authCookie({ id: 'admin-123', email: 'admin@mail.com', role: 'admin' }) },
+    });
+
+    assert.equal(organizerResponse.status, 403);
+    assert.equal(adminResponse.status, 200);
+    assert.deepEqual((await adminResponse.json()).payload, [
+      { id: 'user-123', email: 'user@mail.com', role: 'user' },
+    ]);
+  } finally {
+    usersRepository.findAll = originalFindAll;
+    server.close();
+  }
+});
+
+test('organizer no puede modificar un evento ajeno', async () => {
+  const { server, port } = await getServer();
+
+  try {
+    const createResponse = await fetch(`http://localhost:${port}/api/events`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Cookie: authCookie({ id: 'other-organizer', email: 'other@mail.com', role: 'organizer' }),
+      },
+      body: JSON.stringify({ title: 'Evento ajeno' }),
+    });
+    const event = (await createResponse.json()).payload;
+    const updateResponse = await fetch(`http://localhost:${port}/api/events/${event.id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Cookie: authCookie({ id: 'organizer-123', email: 'org@mail.com', role: 'organizer' }),
+      },
+      body: JSON.stringify({ title: 'Intento no permitido' }),
+    });
+
+    assert.equal(updateResponse.status, 403);
+  } finally {
+    server.close();
+  }
+});
