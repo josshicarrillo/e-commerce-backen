@@ -75,6 +75,31 @@ test('POST /api/sessions/login genera cookie currentUser con JWT', async () => {
   }
 });
 
+test('POST /api/sessions/login rechaza credenciales inválidas', async () => {
+  const { server, port } = await getServer();
+  const originalFindByEmail = usersRepository.findByEmail;
+
+  try {
+    usersRepository.findByEmail = async () => null;
+
+    const response = await fetch(`http://localhost:${port}/api/sessions/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'ana@mail.com', password: 'incorrecta' }),
+    });
+    const payload = await response.json();
+
+    assert.equal(response.status, 401);
+    assert.deepEqual(payload, {
+      status: 'error',
+      message: 'Credenciales inválidas',
+    });
+  } finally {
+    usersRepository.findByEmail = originalFindByEmail;
+    server.close();
+  }
+});
+
 test('POST /api/sessions/register devuelve 409 ante duplicado detectado por Mongo', async () => {
   const { server, port } = await getServer();
   const originalFindByEmail = usersRepository.findByEmail;
@@ -127,6 +152,26 @@ test('GET /api/sessions/current devuelve datos del usuario autenticado', async (
     assert.equal(response.status, 200);
     assert.equal(payload.status, 'success');
     assert.deepEqual(payload.payload, { id: 'user-123', email: 'ana@mail.com', role: 'user' });
+  } finally {
+    server.close();
+  }
+});
+
+test('GET /api/sessions/current rechaza una cookie ausente o manipulada', async () => {
+  const { server, port } = await getServer();
+
+  try {
+    const withoutCookie = await fetch(`http://localhost:${port}/api/sessions/current`);
+    const invalidToken = await fetch(`http://localhost:${port}/api/sessions/current`, {
+      headers: { Cookie: 'currentUser=token-manipulado' },
+    });
+
+    assert.equal(withoutCookie.status, 401);
+    assert.equal(invalidToken.status, 401);
+    assert.deepEqual(await invalidToken.json(), {
+      status: 'error',
+      message: 'No autenticado',
+    });
   } finally {
     server.close();
   }

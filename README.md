@@ -9,6 +9,7 @@ Backend para la plataforma de eventos y colecciones de Helen Collection, con API
 - MongoDB + Mongoose
 - JWT
 - bcryptjs
+- Passport.js + passport-local + passport-jwt
 - dotenv
 
 ## Instalación
@@ -48,12 +49,12 @@ src/
 ├── app.js
 ├── server.js
 ├── config/
-│   └── env.js
+│   ├── env.js
+│   └── passport.config.js
 ├── controllers/
 │   ├── events.controller.js
 │   └── sessions.controller.js
 ├── middlewares/
-│   ├── auth.middleware.js
 │   ├── errorHandler.middleware.js
 │   └── notFound.middleware.js
 ├── models/
@@ -66,8 +67,7 @@ src/
 │   ├── events.router.js
 │   └── sessions.router.js
 ├── services/
-│   ├── events.service.js
-│   └── sessions.service.js
+│   └── events.service.js
 ├── utils/
 │   ├── hash.js
 │   └── jwt.js
@@ -196,8 +196,12 @@ La respuesta también incluye la cookie `currentUser` con `httpOnly`, `sameSite:
 
 - La lógica de hashing vive en `src/utils/hash.js`
 - La lógica de JWT vive en `src/utils/jwt.js`
-- El middleware de autenticación vive en `src/middlewares/auth.middleware.js`
-- Las rutas quedan separadas de la lógica de seguridad y se mantienen limpias
+- Passport se inicializa en `src/app.js` y las estrategias se centralizan en `src/config/passport.config.js`.
+- `register` valida, normaliza el email, verifica unicidad, aplica bcrypt y asigna el rol `user`.
+- `login` valida las credenciales; el controller genera el JWT y configura la cookie HTTP Only.
+- `current` valida el JWT de la cookie `currentUser` y expone solamente `id`, `email` y `role`.
+- Las rutas delegan la autenticación en Passport y el logout sólo elimina la cookie.
+- La estructura permite agregar providers externos como Google o GitHub sin modificar `app.js`.
 - La contraseña nunca se devuelve en la respuesta del backend
 
 ## Verificación recomendada antes de subir a GitHub
