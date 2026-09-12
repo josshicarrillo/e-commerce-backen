@@ -9,11 +9,11 @@ export const authorize = (...allowedRoles) => (req, res, next) => {
   return next();
 };
 
-export const authorizeEventOwner = (getEvent) => async (req, res, next) => {
+export const authorizeEventOwner = (getEvent, param = 'id') => async (req, res, next) => {
   try {
     if (req.user?.role === 'admin') return next();
 
-    const event = await getEvent(req.params.id);
+    const event = await getEvent(req.params[param]);
     if (!event || event.organizer?.toString() !== req.user?.id?.toString()) {
       return res.status(403).json({
         status: 'error',

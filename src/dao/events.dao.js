@@ -9,13 +9,16 @@ export const eventsDAO = {
 
     return { events, total };
   },
-  findById: (id) => EventModel.findOne({ _id: id, status: 'active' }).lean(),
+  findById: (id, { activeOnly = true } = {}) => EventModel.findOne({
+    _id: id,
+    ...(activeOnly ? { status: { $in: ['published', 'active'] } } : {}),
+  }).lean(),
   create: async (eventData) => {
     const event = await EventModel.create(eventData);
     return event.toObject();
   },
   update: (id, eventData) => EventModel.findOneAndUpdate(
-    { _id: id, status: 'active' },
+    { _id: id, status: { $in: ['published', 'active'] } },
     eventData,
     { new: true, runValidators: true },
   ).lean(),

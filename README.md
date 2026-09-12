@@ -35,6 +35,11 @@ NODE_ENV=development
 MONGO_URL=mongodb+srv://<username>:<password>@cluster0.klgnwxc.mongodb.net/db-helen-collection
 JWT_SECRET=your_jwt_secret_here
 JWT_EXPIRES_IN=1h
+MAIL_HOST=smtp.example.com
+MAIL_PORT=587
+MAIL_USER=your_mail_user
+MAIL_PASS=your_mail_password
+MAIL_FROM=no-reply@example.com
 ```
 
 ## Ejecución
@@ -55,6 +60,7 @@ src/
 │   └── passport.config.js
 ├── controllers/
 │   ├── events.controller.js
+│   ├── tickets.controller.js
 │   └── sessions.controller.js
 ├── middlewares/
 │   ├── auth.middleware.js
@@ -63,15 +69,20 @@ src/
 │   └── notFound.middleware.js
 ├── models/
 │   ├── Event.js
+│   ├── Ticket.js
 │   └── User.js
 ├── repositories/
 │   ├── events.repository.js
+│   ├── tickets.repository.js
 │   └── users.repository.js
 ├── routes/
 │   ├── events.router.js
-│   └── sessions.router.js
+│   ├── sessions.router.js
+│   └── tickets.router.js
 ├── services/
 │   ├── events.service.js
+│   ├── mail.service.js
+│   ├── tickets.service.js
 │   ├── users.service.js
 │   └── sessions.service.js
 ├── utils/
@@ -79,6 +90,7 @@ src/
 │   └── jwt.js
 └── dao/
     ├── events.dao.js
+  ├── tickets.dao.js
     └── users.dao.js
 
 test/
@@ -103,7 +115,7 @@ El repositorio mantiene un único archivo de referencia de variables de entorno:
 | --- | --- | --- |
 | GET | /api/health | Verifica que el servidor esté activo |
 | GET | /api/events | Obtiene eventos |
-| GET | /api/events/:id | Obtiene un evento activo |
+| GET | /api/events/:id | Obtiene un evento publicado |
 | GET | /api/sessions | Endpoint base de sesiones |
 | POST | /api/sessions/register | Registro de usuario |
 | POST | /api/sessions/login | Inicio de sesión con JWT en cookie |
@@ -112,6 +124,10 @@ El repositorio mantiene un único archivo de referencia de variables de entorno:
 | POST | /api/events | Crea un evento: organizer o admin |
 | PUT | /api/events/:id | Modifica un evento propio: organizer; cualquiera: admin |
 | DELETE | /api/events/:id | Cancela un evento propio: organizer; cualquiera: admin |
+| POST | /api/events/:eid/tickets | Crea una inscripción autenticada |
+| GET | /api/tickets/my-tickets | Lista las inscripciones propias |
+| GET | /api/events/:eid/tickets | Lista tickets: organizer propietario o admin |
+| PATCH | /api/tickets/:tid/cancel | Cancela el ticket propio o uno administrado por admin |
 | GET | /api/users | Lista usuarios: solo admin |
 
 ## Roles y autorización
@@ -285,6 +301,32 @@ curl -sS -X POST http://localhost:8080/api/sessions/login \
 curl -sS http://localhost:8080/api/sessions/current \
   -H "Cookie: currentUser=<token>"
 ```
+
+## Inscripciones y tickets
+
+Un usuario autenticado puede inscribirse indicando una cantidad en un evento
+publicado, futuro y con capacidad disponible:
+
+```http
+POST /api/events/:eid/tickets
+Content-Type: application/json
+Cookie: currentUser=<token>
+```
+
+```json
+{ "quantity": 1 }
+```
+
+Cada ticket contiene referencias a `user` y `event`, además de `status`,
+`quantity`, `reservationCode`, `createdAt` y `cancelledAt`. Los estados posibles
+son `confirmed`, `pending` y `cancelled`. Un usuario solo puede tener una
+inscripción activa por evento. Los tickets cancelados liberan sus cupos y no se
+eliminan físicamente.
+
+Las confirmaciones se envían mediante Nodemailer cuando están configuradas las
+variables `MAIL_HOST`, `MAIL_PORT`, `MAIL_USER`, `MAIL_PASS` y `MAIL_FROM`.
+Sin configuración SMTP, la inscripción se conserva y el correo se omite con una
+advertencia de desarrollo.
 
 ## Respuesta esperada del servidor
 
