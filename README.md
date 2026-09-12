@@ -50,6 +50,7 @@ src/
 ├── app.js
 ├── server.js
 ├── config/
+│   ├── db.js
 │   ├── env.js
 │   └── passport.config.js
 ├── controllers/
@@ -70,14 +71,31 @@ src/
 │   ├── events.router.js
 │   └── sessions.router.js
 ├── services/
-│   └── events.service.js
+│   ├── events.service.js
+│   ├── users.service.js
+│   └── sessions.service.js
 ├── utils/
 │   ├── hash.js
 │   └── jwt.js
 └── dao/
     ├── events.dao.js
     └── users.dao.js
+
+test/
+└── app.test.js
 ```
+
+## Arquitectura y persistencia
+
+Las solicitudes siguen el flujo `router → middleware → controller → service → repository → DAO/model`.
+El módulo de sesiones utiliza `sessions.service.js` para el registro, la autenticación y la transformación del usuario público; Passport sólo adapta esas operaciones a sus estrategias.
+Los usuarios se persisten en MongoDB mediante `users.repository.js` y `users.dao.js`.
+La conexión se inicializa en `server.js` mediante `config/db.js`, que ejecuta `mongoose.connect` cuando existe `MONGO_URL`.
+Los eventos utilizan actualmente un DAO en memoria y se pierden al reiniciar el servidor.
+
+La carpeta `src/middlewares` contiene autenticación, autorización, manejo de rutas inexistentes y manejo global de errores.
+Las pruebas reales de la API se encuentran en `test/app.test.js` y se ejecutan con `npm test`.
+El repositorio mantiene un único archivo de referencia de variables de entorno: `.env.example`; el archivo `.env` local está ignorado por Git.
 
 ## Rutas principales
 
