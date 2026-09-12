@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import app from '../src/app.js';
 import { usersRepository } from '../src/repositories/users.repository.js';
+import { eventsDAO } from '../src/dao/events.dao.js';
 import { signToken } from '../src/utils/jwt.js';
 import { hashPassword } from '../src/utils/hash.js';
 
@@ -197,38 +198,50 @@ test('POST /api/sessions/logout elimina la cookie currentUser', async () => {
 });
 
 const authCookie = (user) => `currentUser=${signToken(user)}`;
+const organizerId = '507f1f77bcf86cd799439011';
+const otherOrganizerId = '507f1f77bcf86cd799439012';
+const eventPayload = (title) => ({
+  title,
+  description: 'Una descripción válida para el evento',
+  date: '2026-12-01T20:00:00.000Z',
+  location: 'Buenos Aires',
+  price: 25,
+});
 
 test('POST /api/events diferencia 401, 403 y creación autorizada', async () => {
   const { server, port } = await getServer();
+  const originalCreate = eventsDAO.create;
 
   try {
+    eventsDAO.create = async (data) => ({ id: 'event-123', ...data });
     const withoutSession = await fetch(`http://localhost:${port}/api/events`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: 'Sin sesión' }),
+      body: JSON.stringify(eventPayload('Sin sesión')),
     });
     const userResponse = await fetch(`http://localhost:${port}/api/events`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Cookie: authCookie({ id: 'user-123', email: 'user@mail.com', role: 'user' }),
+        Cookie: authCookie({ id: '507f1f77bcf86cd799439013', email: 'user@mail.com', role: 'user' }),
       },
-      body: JSON.stringify({ title: 'Solo organizer' }),
+      body: JSON.stringify(eventPayload('Solo organizer')),
     });
     const organizerResponse = await fetch(`http://localhost:${port}/api/events`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Cookie: authCookie({ id: 'organizer-123', email: 'org@mail.com', role: 'organizer' }),
+        Cookie: authCookie({ id: organizerId, email: 'org@mail.com', role: 'organizer' }),
       },
-      body: JSON.stringify({ title: 'Evento autorizado' }),
+      body: JSON.stringify(eventPayload('Evento autorizado')),
     });
 
     assert.equal(withoutSession.status, 401);
     assert.equal(userResponse.status, 403);
     assert.equal(organizerResponse.status, 201);
-    assert.equal((await organizerResponse.json()).payload.organizer, 'organizer-123');
+    assert.equal((await organizerResponse.json()).payload.organizer, organizerId);
   } finally {
+    eventsDAO.create = originalCreate;
     server.close();
   }
 });
@@ -260,28 +273,34 @@ test('GET /api/users solo permite el rol admin', async () => {
 
 test('organizer no puede modificar un evento ajeno', async () => {
   const { server, port } = await getServer();
+  const originalCreate = eventsDAO.create;
+  const originalFindById = eventsDAO.findById;
 
   try {
+    eventsDAO.create = async (data) => ({ id: 'event-456', ...data });
+    eventsDAO.findById = async () => ({ ...eventPayload('Evento ajeno'), id: 'event-456', organizer: otherOrganizerId });
     const createResponse = await fetch(`http://localhost:${port}/api/events`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Cookie: authCookie({ id: 'other-organizer', email: 'other@mail.com', role: 'organizer' }),
+        Cookie: authCookie({ id: otherOrganizerId, email: 'other@mail.com', role: 'organizer' }),
       },
-      body: JSON.stringify({ title: 'Evento ajeno' }),
+      body: JSON.stringify(eventPayload('Evento ajeno')),
     });
     const event = (await createResponse.json()).payload;
     const updateResponse = await fetch(`http://localhost:${port}/api/events/${event.id}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
-        Cookie: authCookie({ id: 'organizer-123', email: 'org@mail.com', role: 'organizer' }),
+        Cookie: authCookie({ id: organizerId, email: 'org@mail.com', role: 'organizer' }),
       },
       body: JSON.stringify({ title: 'Intento no permitido' }),
     });
 
     assert.equal(updateResponse.status, 403);
   } finally {
+    eventsDAO.create = originalCreate;
+    eventsDAO.findById = originalFindById;
     server.close();
   }
 });

@@ -1,20 +1,23 @@
-import { randomUUID } from 'node:crypto';
-
-const events = [];
+import EventModel from '../models/Event.js';
 
 export const eventsDAO = {
-  findAll: () => events.filter(({ status }) => status === 'active'),
-  create: (eventData) => {
-    const event = { id: randomUUID(), status: 'active', ...eventData };
-    events.push(event);
-    return event;
+  findAll: async ({ filter, sort, skip, limit }) => {
+    const [events, total] = await Promise.all([
+      EventModel.find(filter).sort(sort).skip(skip).limit(limit).lean(),
+      EventModel.countDocuments(filter),
+    ]);
+
+    return { events, total };
   },
-  findById: (id) => events.find((event) => event.id === id),
-  update: (id, eventData) => {
-    const event = eventsDAO.findById(id);
-    if (!event) return null;
-    Object.assign(event, eventData);
-    return event;
+  findById: (id) => EventModel.findOne({ _id: id, status: 'active' }).lean(),
+  create: async (eventData) => {
+    const event = await EventModel.create(eventData);
+    return event.toObject();
   },
+  update: (id, eventData) => EventModel.findOneAndUpdate(
+    { _id: id, status: 'active' },
+    eventData,
+    { new: true, runValidators: true },
+  ).lean(),
   cancel: (id) => eventsDAO.update(id, { status: 'cancelled' }),
 };

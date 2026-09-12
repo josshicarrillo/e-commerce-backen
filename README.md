@@ -91,7 +91,7 @@ Las solicitudes siguen el flujo `router → middleware → controller → servic
 El módulo de sesiones utiliza `sessions.service.js` para el registro, la autenticación y la transformación del usuario público; Passport sólo adapta esas operaciones a sus estrategias.
 Los usuarios se persisten en MongoDB mediante `users.repository.js` y `users.dao.js`.
 La conexión se inicializa en `server.js` mediante `config/db.js`, que ejecuta `mongoose.connect` cuando existe `MONGO_URL`.
-Los eventos utilizan actualmente un DAO en memoria y se pierden al reiniciar el servidor.
+Los eventos se persisten en MongoDB mediante `Event.js`, `events.dao.js` y `events.repository.js`.
 
 La carpeta `src/middlewares` contiene autenticación, autorización, manejo de rutas inexistentes y manejo global de errores.
 Las pruebas reales de la API se encuentran en `test/app.test.js` y se ejecutan con `npm test`.
@@ -103,6 +103,7 @@ El repositorio mantiene un único archivo de referencia de variables de entorno:
 | --- | --- | --- |
 | GET | /api/health | Verifica que el servidor esté activo |
 | GET | /api/events | Obtiene eventos |
+| GET | /api/events/:id | Obtiene un evento activo |
 | GET | /api/sessions | Endpoint base de sesiones |
 | POST | /api/sessions/register | Registro de usuario |
 | POST | /api/sessions/login | Inicio de sesión con JWT en cookie |
@@ -129,6 +130,14 @@ responde `401 No autenticado` si no existe una sesión válida. Luego
 realizar esta acción` cuando el usuario está autenticado pero su rol no alcanza.
 El registro público siempre asigna `user`; no acepta crear `organizer` o `admin`
 desde el body.
+
+El listado de eventos admite `page`, `limit`, `title`, `location`, `dateFrom`,
+`dateTo`, `minPrice`, `maxPrice`, `sortBy` y `order=asc|desc` como query
+parameters. Por ejemplo:
+
+```text
+GET /api/events?page=2&limit=10&location=Buenos&sortBy=price&order=asc
+```
 
 ## Registro
 
