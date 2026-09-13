@@ -62,6 +62,10 @@ src/
 │   ├── events.controller.js
 │   ├── tickets.controller.js
 │   └── sessions.controller.js
+├── dtos/
+│   ├── event.dto.js
+│   ├── ticket.dto.js
+│   └── user.dto.js
 ├── middlewares/
 │   ├── auth.middleware.js
 │   ├── authorize.middleware.js
@@ -90,7 +94,7 @@ src/
 │   └── jwt.js
 └── dao/
     ├── events.dao.js
-  ├── tickets.dao.js
+    ├── tickets.dao.js
     └── users.dao.js
 
 test/
@@ -99,14 +103,22 @@ test/
 
 ## Arquitectura y persistencia
 
-Las solicitudes siguen el flujo `router → middleware → controller → service → repository → DAO/model`.
+Las solicitudes siguen el flujo `router → middleware → controller → service → repository → DAO → model`.
+Las respuestas de usuarios, eventos y tickets pasan por DTOs antes de llegar al cliente. Los DTOs de usuario eliminan siempre `password`, y el DTO de ticket vuelve a filtrar el usuario cuando llega mediante `populate`.
+
 El módulo de sesiones utiliza `sessions.service.js` para el registro, la autenticación y la transformación del usuario público; Passport sólo adapta esas operaciones a sus estrategias.
-Los usuarios se persisten en MongoDB mediante `users.repository.js` y `users.dao.js`.
+
+Los services contienen las reglas de negocio, como validación de cupos, estados, duplicados, permisos y notificaciones; los controllers sólo coordinan request/response.
+
+Los usuarios se persisten en MongoDB mediante `users.repository.js` y `users.dao.js`. Los DAOs son la única capa que importa modelos de Mongoose.
+
 La conexión se inicializa en `server.js` mediante `config/db.js`, que ejecuta `mongoose.connect` cuando existe `MONGO_URL`.
 Los eventos se persisten en MongoDB mediante `Event.js`, `events.dao.js` y `events.repository.js`.
 
 La carpeta `src/middlewares` contiene autenticación, autorización, manejo de rutas inexistentes y manejo global de errores.
+
 Las pruebas reales de la API se encuentran en `test/app.test.js` y se ejecutan con `npm test`.
+
 El repositorio mantiene un único archivo de referencia de variables de entorno: `.env.example`; el archivo `.env` local está ignorado por Git.
 
 ## Rutas principales
@@ -140,16 +152,15 @@ El repositorio mantiene un único archivo de referencia de variables de entorno:
 | Modificar cualquier evento | No | No | Sí |
 | Ver todos los usuarios | No | No | Sí |
 
-Las rutas privadas usan `authMiddleware`, que valida el JWT de `currentUser` y
-responde `401 No autenticado` si no existe una sesión válida. Luego
-`authorize(...roles)` verifica permisos y responde `403 No tenés permisos para
-realizar esta acción` cuando el usuario está autenticado pero su rol no alcanza.
-El registro público siempre asigna `user`; no acepta crear `organizer` o `admin`
-desde el body.
+Las rutas privadas usan `authMiddleware`, que valida el JWT de `currentUser` y responde `401 No autenticado` si no existe una sesión válida.
 
-El listado de eventos admite `page`, `limit`, `title`, `location`, `dateFrom`,
-`dateTo`, `minPrice`, `maxPrice`, `sortBy` y `order=asc|desc` como query
-parameters. Por ejemplo:
+Luego `authorize(...roles)` verifica permisos y responde `403 No tenés permisos para realizar esta acción` cuando el usuario está autenticado pero su rol no alcanza.
+
+El registro público siempre asigna `user`; no acepta crear `organizer` o `admin` desde el body.
+
+El listado de eventos admite `page`, `limit`, `title`, `location`, `dateFrom`, `dateTo`, `minPrice`, `maxPrice`, `sortBy` y `order=asc|desc` como query parameters. 
+
+Por ejemplo:
 
 ```text
 GET /api/events?page=2&limit=10&location=Buenos&sortBy=price&order=asc
@@ -262,13 +273,21 @@ La respuesta también incluye la cookie `currentUser` con `httpOnly`, `sameSite:
 ## Notas de implementación
 
 - La lógica de hashing vive en `src/utils/hash.js`
+
 - La lógica de JWT vive en `src/utils/jwt.js`
+
 - Passport se inicializa en `src/app.js` y las estrategias se centralizan en `src/config/passport.config.js`.
+
 - `register` valida, normaliza el email, verifica unicidad, aplica bcrypt y asigna el rol `user`.
+
 - `login` valida las credenciales; el controller genera el JWT y configura la cookie HTTP Only.
+
 - `current` valida el JWT de la cookie `currentUser` y expone solamente `id`, `email` y `role`.
+
 - Las rutas delegan la autenticación en Passport y el logout sólo elimina la cookie.
+
 - La estructura permite agregar providers externos como Google o GitHub sin modificar `app.js`.
+
 - La contraseña nunca se devuelve en la respuesta del backend
 
 ## Verificación recomendada antes de subir a GitHub
@@ -304,8 +323,7 @@ curl -sS http://localhost:8080/api/sessions/current \
 
 ## Inscripciones y tickets
 
-Un usuario autenticado puede inscribirse indicando una cantidad en un evento
-publicado, futuro y con capacidad disponible:
+Un usuario autenticado puede inscribirse indicando una cantidad en un evento publicado, futuro y con capacidad disponible:
 
 ```http
 POST /api/events/:eid/tickets
@@ -317,16 +335,18 @@ Cookie: currentUser=<token>
 { "quantity": 1 }
 ```
 
-Cada ticket contiene referencias a `user` y `event`, además de `status`,
-`quantity`, `reservationCode`, `createdAt` y `cancelledAt`. Los estados posibles
-son `confirmed`, `pending` y `cancelled`. Un usuario solo puede tener una
-inscripción activa por evento. Los tickets cancelados liberan sus cupos y no se
-eliminan físicamente.
+Cada ticket contiene referencias a `user` y `event`, además de `status`, `quantity`, `reservationCode`, `createdAt` y `cancelledAt`. 
 
-Las confirmaciones se envían mediante Nodemailer cuando están configuradas las
-variables `MAIL_HOST`, `MAIL_PORT`, `MAIL_USER`, `MAIL_PASS` y `MAIL_FROM`.
-Sin configuración SMTP, la inscripción se conserva y el correo se omite con una
-advertencia de desarrollo.
+Los estados posibles son `confirmed`, `pending` y `cancelled`. 
+
+Un usuario solo puede tener una inscripción activa por evento.
+
+Los tickets cancelados liberan sus cupos y no se eliminan físicamente.
+
+Las confirmaciones se envían mediante Nodemailer cuando están configuradas las variables 
+`MAIL_HOST`, `MAIL_PORT`, `MAIL_USER`, `MAIL_PASS` y `MAIL_FROM`.
+
+Sin configuración SMTP, la inscripción se conserva y el correo se omite con una advertencia de desarrollo.
 
 ## Respuesta esperada del servidor
 

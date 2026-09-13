@@ -1,13 +1,10 @@
 import { createUser, findUserByEmail } from './users.service.js';
 import { comparePassword, hashPassword } from '../utils/hash.js';
+import { toAuthenticatedUserDTO, toUserDTO } from '../dtos/user.dto.js';
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export const toPublicUser = (user) => ({
-  id: user._id?.toString?.() || user.id,
-  email: user.email,
-  role: user.role || 'user',
-});
+export const toPublicUser = toAuthenticatedUserDTO;
 
 export const registerUser = async ({ first_name, last_name, email, password }) => {
   if (!first_name || !last_name || !email || !password) {
@@ -44,8 +41,7 @@ export const registerUser = async ({ first_name, last_name, email, password }) =
     role: 'user',
   });
 
-  delete created.password;
-  return created;
+  return toUserDTO(created);
 };
 
 export const authenticateUser = async (email, password) => {

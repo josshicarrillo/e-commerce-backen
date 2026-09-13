@@ -1,6 +1,4 @@
 export const errorHandler = (err, req, res, next) => {
-  console.error(err);
-
   const isDuplicateKey = err.code === 11000;
   const isDuplicateEmail = err.code === 'EMAIL_EXISTS'
     || (isDuplicateKey && (!err.keyPattern || err.keyPattern.email));

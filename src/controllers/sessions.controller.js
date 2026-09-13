@@ -1,5 +1,6 @@
 import { signToken } from '../utils/jwt.js';
 import { getAllUsers } from '../services/users.service.js';
+import { toAuthenticatedUserDTO, toUserDTO, toUserListDTO } from '../dtos/user.dto.js';
 
 export const getSessionsController = (req, res) => {
   return res.status(200).json({
@@ -11,14 +12,14 @@ export const getSessionsController = (req, res) => {
 export const getUsersController = async (req, res, next) => {
   try {
     const users = await getAllUsers();
-    return res.status(200).json({ status: 'success', payload: users });
+    return res.status(200).json({ status: 'success', payload: toUserListDTO(users) });
   } catch (error) {
     return next(error);
   }
 };
 
 export const registerController = (req, res) => {
-  return res.status(201).json({ status: 'success', payload: req.user });
+  return res.status(201).json({ status: 'success', payload: toUserDTO(req.user) });
 };
 
 export const loginController = (req, res) => {
@@ -41,7 +42,7 @@ export const loginController = (req, res) => {
 export const currentController = (req, res) => {
   return res.status(200).json({
     status: 'success',
-    payload: req.user,
+    payload: toAuthenticatedUserDTO(req.user),
   });
 };
 

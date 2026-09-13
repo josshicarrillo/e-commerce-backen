@@ -4,6 +4,7 @@ import {
   getEventTicketsService,
   getMyTicketsService,
 } from '../services/tickets.service.js';
+import { toTicketDTO, toTicketListDTO } from '../dtos/ticket.dto.js';
 
 export const createTicketController = async (req, res, next) => {
   try {
@@ -13,7 +14,7 @@ export const createTicketController = async (req, res, next) => {
       eventId: req.params.eid,
       quantity: req.body.quantity,
     });
-    return res.status(201).json({ status: 'success', payload: ticket });
+    return res.status(201).json({ status: 'success', payload: toTicketDTO(ticket) });
   } catch (error) {
     return next(error);
   }
@@ -22,7 +23,7 @@ export const createTicketController = async (req, res, next) => {
 export const getMyTicketsController = async (req, res, next) => {
   try {
     const tickets = await getMyTicketsService(req.user.id);
-    return res.status(200).json({ status: 'success', payload: tickets });
+    return res.status(200).json({ status: 'success', payload: toTicketListDTO(tickets) });
   } catch (error) {
     return next(error);
   }
@@ -31,7 +32,7 @@ export const getMyTicketsController = async (req, res, next) => {
 export const getEventTicketsController = async (req, res, next) => {
   try {
     const tickets = await getEventTicketsService(req.params.eid);
-    return res.status(200).json({ status: 'success', payload: tickets });
+    return res.status(200).json({ status: 'success', payload: toTicketListDTO(tickets) });
   } catch (error) {
     return next(error);
   }
@@ -44,7 +45,7 @@ export const cancelTicketController = async (req, res, next) => {
       userId: req.user.id,
       isAdmin: req.user.role === 'admin',
     });
-    return res.status(200).json({ status: 'success', payload: ticket });
+    return res.status(200).json({ status: 'success', payload: toTicketDTO(ticket) });
   } catch (error) {
     return next(error);
   }
