@@ -2,7 +2,7 @@
 
 Backend para la plataforma de eventos y colecciones de Helen Collection, con API REST para gestionar usuarios, sesiones y contenido de eventos.
 
-## Tecnologías
+## Tecnologías -
 
 - Node.js
 - Express
