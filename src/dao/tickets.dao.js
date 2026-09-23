@@ -1,6 +1,6 @@
 import TicketModel from '../models/Ticket.js';
 
-const activeStatuses = ['confirmed', 'pending'];
+const activeStatuses = ['active'];
 
 export const ticketsDAO = {
   findActiveByUserAndEvent: (userId, eventId) => TicketModel.findOne({

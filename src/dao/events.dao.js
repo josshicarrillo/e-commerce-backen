@@ -11,15 +11,20 @@ export const eventsDAO = {
   },
   findById: (id, { activeOnly = true } = {}) => EventModel.findOne({
     _id: id,
-    ...(activeOnly ? { status: { $in: ['published', 'active'] } } : {}),
+    ...(activeOnly ? { status: 'published' } : {}),
   }).lean(),
   create: async (eventData) => {
     const event = await EventModel.create(eventData);
     return event.toObject();
   },
   update: (id, eventData) => EventModel.findOneAndUpdate(
-    { _id: id, status: { $in: ['published', 'active'] } },
+    { _id: id, status: { $ne: 'cancelled' } },
     eventData,
+    { new: true, runValidators: true },
+  ).lean(),
+  updateStatus: (id, status) => EventModel.findOneAndUpdate(
+    { _id: id, status: { $ne: 'cancelled' } },
+    { status },
     { new: true, runValidators: true },
   ).lean(),
   cancel: (id) => eventsDAO.update(id, { status: 'cancelled' }),

@@ -5,6 +5,7 @@ export const ticketsRepository = {
   countReservedByEvent: (eventId) => ticketsDAO.countReservedByEvent(eventId),
   create: (ticketData) => ticketsDAO.create(ticketData),
   findByUser: (userId) => ticketsDAO.findByUser(userId),
+  findByEvent: (eventId) => ticketsDAO.findByEvent(eventId),
   findById: (id) => ticketsDAO.findById(id),
   cancel: (id) => ticketsDAO.cancel(id),
 };

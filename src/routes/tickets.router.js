@@ -17,7 +17,7 @@ router.get(
   '/events/:eid/tickets',
   authMiddleware,
   authorize('organizer', 'admin'),
-  authorizeEventOwner((eventId) => getEventService(eventId), 'eid'),
+  authorizeEventOwner((eventId) => getEventService(eventId, { activeOnly: false }), 'eid'),
   getEventTicketsController,
 );
 router.patch('/tickets/:tid/cancel', authMiddleware, cancelTicketController);

@@ -5,6 +5,12 @@ import { usersRepository } from '../src/repositories/users.repository.js';
 import { eventsDAO } from '../src/dao/events.dao.js';
 import { ticketsRepository } from '../src/repositories/tickets.repository.js';
 import { createTicketService, cancelTicketService } from '../src/services/tickets.service.js';
+import {
+  changeEventStatusService,
+  createEventService,
+  getEventsService,
+  updateEventService,
+} from '../src/services/events.service.js';
 import { signToken } from '../src/utils/jwt.js';
 import { hashPassword } from '../src/utils/hash.js';
 
@@ -239,7 +245,7 @@ test('crear ticket valida evento, cupos y evita duplicados', async () => {
       quantity: 1,
     });
 
-    assert.equal(ticket.status, 'confirmed');
+    assert.equal(ticket.status, 'active');
     assert.equal(ticket.quantity, 1);
     assert.ok(ticket.reservationCode);
 
@@ -301,7 +307,7 @@ test('cancelar ticket exige propietario o administrador y conserva el ticket', a
     ticketsRepository.findById = async () => ({
       id: 'ticket-1',
       user: '507f1f77bcf86cd799439021',
-      status: 'confirmed',
+      status: 'active',
     });
     ticketsRepository.cancel = async () => ({ id: 'ticket-1', status: 'cancelled' });
 
@@ -443,6 +449,123 @@ test('las rutas de tickets diferencian sesión y permisos de propiedad', async (
     assert.equal(otherOrganizer.status, 403);
   } finally {
     eventsDAO.findById = originalFindById;
+    server.close();
+  }
+});
+
+test('GET /api/events devuelve listado paginado con filtros y orden', async () => {
+  const { server, port } = await getServer();
+  const originalFindAll = eventsDAO.findAll;
+
+  try {
+    eventsDAO.findAll = async (options) => {
+      assert.deepEqual(options.filter.status, 'published');
+      assert.equal(options.filter.category.toString(), '/tech/i');
+      assert.equal(options.filter.location.toString(), '/Buenos/i');
+      assert.equal(options.sort.price, -1);
+      assert.equal(options.skip, 5);
+      assert.equal(options.limit, 5);
+      return {
+        events: [{ _id: 'event-1', title: 'Congreso Tech', status: 'published' }],
+        total: 6,
+      };
+    };
+
+    const response = await fetch(
+      `http://localhost:${port}/api/events?status=published&category=tech&location=Buenos&page=2&limit=5&sortBy=price&order=desc`,
+    );
+    const payload = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(payload, {
+      status: 'success',
+      data: [{ id: 'event-1', title: 'Congreso Tech', status: 'published' }],
+      page: 2,
+      limit: 5,
+      total: 6,
+      totalPages: 2,
+    });
+  } finally {
+    eventsDAO.findAll = originalFindAll;
+    server.close();
+  }
+});
+
+test('los eventos validan fecha, capacidad y precio', async () => {
+  const invalidEvents = [
+    { date: '2000-01-01T00:00:00.000Z' },
+    { date: 'not-a-date' },
+    { capacity: 0 },
+    { price: -1 },
+  ];
+
+  for (const invalidEvent of invalidEvents) {
+    assert.throws(
+      () => createEventService(invalidEvent),
+      (error) => error.statusCode === 400,
+    );
+  }
+});
+
+test('no se puede modificar un evento cancelado y se puede cambiar su estado', async () => {
+  const originalFindById = eventsDAO.findById;
+  const originalUpdate = eventsDAO.update;
+  const originalUpdateStatus = eventsDAO.updateStatus;
+
+  try {
+    eventsDAO.findById = async () => ({ status: 'cancelled' });
+    await assert.rejects(
+      () => updateEventService('event-1', { title: 'Nuevo título' }),
+      (error) => error.statusCode === 409,
+    );
+
+    eventsDAO.findById = async () => ({ status: 'draft' });
+    eventsDAO.updateStatus = async (id, status) => ({ _id: id, status });
+    const updated = await changeEventStatusService('event-1', 'published');
+    assert.deepEqual(updated, { _id: 'event-1', status: 'published' });
+    eventsDAO.update = originalUpdate;
+  } finally {
+    eventsDAO.findById = originalFindById;
+    eventsDAO.update = originalUpdate;
+    eventsDAO.updateStatus = originalUpdateStatus;
+  }
+});
+
+test('PATCH /api/events/:id/status requiere permisos y cambia el estado', async () => {
+  const { server, port } = await getServer();
+  const originalFindById = eventsDAO.findById;
+  const originalUpdateStatus = eventsDAO.updateStatus;
+
+  try {
+    eventsDAO.findById = async () => ({ organizer: organizerId, status: 'draft' });
+    eventsDAO.updateStatus = async (id, status) => ({
+      _id: id,
+      title: 'Evento',
+      description: 'Descripción del evento',
+      category: 'tech',
+      date: '2099-12-01T20:00:00.000Z',
+      location: 'Buenos Aires',
+      capacity: 10,
+      price: 20,
+      organizer: organizerId,
+      status,
+    });
+
+    const response = await fetch(`http://localhost:${port}/api/events/event-1/status`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Cookie: authCookie({ id: organizerId, email: 'org@mail.com', role: 'organizer' }),
+      },
+      body: JSON.stringify({ status: 'published' }),
+    });
+    const payload = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.equal(payload.payload.status, 'published');
+  } finally {
+    eventsDAO.findById = originalFindById;
+    eventsDAO.updateStatus = originalUpdateStatus;
     server.close();
   }
 });

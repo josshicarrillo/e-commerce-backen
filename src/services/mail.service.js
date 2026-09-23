@@ -20,7 +20,6 @@ const transporter = hasMailConfig
 
 export const sendTicketConfirmation = async ({ recipient, ticket, event }) => {
   if (!transporter) {
-    console.warn('Email no configurado. Se omite la confirmación por correo.');
     return false;
   }
 

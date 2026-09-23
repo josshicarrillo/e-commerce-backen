@@ -4,7 +4,7 @@ const ticketSchema = new mongoose.Schema(
   {
     user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     event: { type: mongoose.Schema.Types.ObjectId, ref: 'Event', required: true },
-    status: { type: String, enum: ['confirmed', 'pending', 'cancelled'], default: 'confirmed' },
+    status: { type: String, enum: ['active', 'cancelled'], default: 'active' },
     quantity: { type: Number, required: true, min: 1, validate: Number.isInteger },
     reservationCode: { type: String, required: true, unique: true, index: true },
     cancelledAt: { type: Date, default: null },
@@ -14,7 +14,7 @@ const ticketSchema = new mongoose.Schema(
 
 ticketSchema.index(
   { user: 1, event: 1 },
-  { unique: true, partialFilterExpression: { status: { $in: ['confirmed', 'pending'] } } },
+  { unique: true, partialFilterExpression: { status: 'active' } },
 );
 
 const TicketModel = mongoose.model('Ticket', ticketSchema);

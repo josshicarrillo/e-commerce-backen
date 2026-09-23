@@ -1,40 +1,31 @@
 # Helen Collection Backend
 
-Backend para la plataforma de eventos y colecciones de Helen Collection, con API REST para gestionar usuarios, sesiones y contenido de eventos.
+API REST para una plataforma de eventos: usuarios, autenticacion, roles, eventos, inscripciones, control de cupos y notificaciones por email.
 
-## Tecnologías -
+## Tecnologias
 
-- Node.js
-- Express
-- MongoDB + Mongoose
-- JWT
-- bcryptjs
-- Passport.js + passport-local + passport-jwt
-- Roles: `user`, `organizer` y `admin`
-- dotenv
+- Node.js 18+ y Express
+- MongoDB con Mongoose
+- Passport.js, JWT en cookie `httpOnly` y bcryptjs
+- Nodemailer
+- Node Test Runner
 
-## Instalación
+## Instalacion y configuracion
 
 ```bash
 npm install
-```
-
-## Variables de entorno
-
-Copia el ejemplo localmente:
-
-```bash
 cp .env.example .env
+npm run dev
 ```
 
-Archivo de ejemplo:
+Variables requeridas en `.env`:
 
 ```env
 PORT=8080
-NODE_ENV=development
-MONGO_URL=mongodb+srv://<username>:<password>@cluster0.klgnwxc.mongodb.net/db-helen-collection
-JWT_SECRET=your_jwt_secret_here
+MONGO_URL=mongodb://localhost:27017/helen-collection
+JWT_SECRET=change-this-secret
 JWT_EXPIRES_IN=1h
+NODE_ENV=development
 MAIL_HOST=smtp.example.com
 MAIL_PORT=587
 MAIL_USER=your_mail_user
@@ -42,324 +33,176 @@ MAIL_PASS=your_mail_password
 MAIL_FROM=no-reply@example.com
 ```
 
-## Ejecución
+`MAIL_*` permite enviar la confirmacion de inscripcion. Si no se configura SMTP, la inscripcion se guarda y el envio se omite.
+
+## Comandos
 
 ```bash
-npm run dev
+npm start       # inicia el servidor
+npm run dev     # inicia con watch
+npm test        # ejecuta las pruebas
 ```
 
-## Estructura del proyecto
+## Arquitectura
+
+El flujo es `routes -> middlewares -> controllers -> services -> repositories -> dao -> models`.
+
+Los modelos de Mongoose solo se importan en los DAO. Los services contienen las reglas de negocio y los controllers coordinan request/response. Los DTO filtran las respuestas publicas; ninguna respuesta incluye `password`.
 
 ```text
 src/
-├── app.js
-├── server.js
-├── config/
-│   ├── db.js
-│   ├── env.js
-│   └── passport.config.js
-├── controllers/
-│   ├── events.controller.js
-│   ├── tickets.controller.js
-│   └── sessions.controller.js
-├── dtos/
-│   ├── event.dto.js
-│   ├── ticket.dto.js
-│   └── user.dto.js
-├── middlewares/
-│   ├── auth.middleware.js
-│   ├── authorize.middleware.js
-│   ├── errorHandler.middleware.js
-│   └── notFound.middleware.js
-├── models/
-│   ├── Event.js
-│   ├── Ticket.js
-│   └── User.js
-├── repositories/
-│   ├── events.repository.js
-│   ├── tickets.repository.js
-│   └── users.repository.js
-├── routes/
-│   ├── events.router.js
-│   ├── sessions.router.js
-│   └── tickets.router.js
-├── services/
-│   ├── events.service.js
-│   ├── mail.service.js
-│   ├── tickets.service.js
-│   ├── users.service.js
-│   └── sessions.service.js
-├── utils/
-│   ├── hash.js
-│   └── jwt.js
-└── dao/
-    ├── events.dao.js
-    ├── tickets.dao.js
-    └── users.dao.js
-
-test/
-└── app.test.js
+├── config/       # entorno, base de datos y Passport
+├── controllers/  # coordinacion HTTP
+├── dao/          # unico acceso a modelos Mongoose
+├── dtos/         # respuestas publicas
+├── middlewares/  # autenticacion, roles y errores
+├── models/       # User, Event y Ticket
+├── repositories/ # acceso abstracto a DAO
+├── routes/       # endpoints
+├── services/     # reglas de negocio
+└── utils/        # bcrypt y JWT
 ```
 
-## Arquitectura y persistencia
+## Roles
 
-Las solicitudes siguen el flujo `router → middleware → controller → service → repository → DAO → model`.
-Las respuestas de usuarios, eventos y tickets pasan por DTOs antes de llegar al cliente. Los DTOs de usuario eliminan siempre `password`, y el DTO de ticket vuelve a filtrar el usuario cuando llega mediante `populate`.
+- `user`: consulta eventos y administra sus propias inscripciones.
+- `organizer`: crea eventos y administra los eventos propios.
+- `admin`: puede crear, modificar y administrar cualquier evento o ticket.
 
-El módulo de sesiones utiliza `sessions.service.js` para el registro, la autenticación y la transformación del usuario público; Passport sólo adapta esas operaciones a sus estrategias.
+El registro publico siempre crea usuarios con rol `user`; el campo `role` enviado en el body se ignora.
 
-Los services contienen las reglas de negocio, como validación de cupos, estados, duplicados, permisos y notificaciones; los controllers sólo coordinan request/response.
+### Usuarios de prueba
 
-Los usuarios se persisten en MongoDB mediante `users.repository.js` y `users.dao.js`. Los DAOs son la única capa que importa modelos de Mongoose.
+Registra primero un usuario mediante `POST /api/sessions/register`. Para probar permisos de organizer o admin, promueve ese usuario directamente en MongoDB desde una consola autorizada:
 
-La conexión se inicializa en `server.js` mediante `config/db.js`, que ejecuta `mongoose.connect` cuando existe `MONGO_URL`.
-Los eventos se persisten en MongoDB mediante `Event.js`, `events.dao.js` y `events.repository.js`.
+```javascript
+use helen-collection
+db.users.updateOne({ email: 'organizer@mail.com' }, { $set: { role: 'organizer' } })
+db.users.updateOne({ email: 'admin@mail.com' }, { $set: { role: 'admin' } })
+```
 
-La carpeta `src/middlewares` contiene autenticación, autorización, manejo de rutas inexistentes y manejo global de errores.
+Luego inicia sesión nuevamente para obtener una cookie JWT con el rol actualizado. No se debe enviar `role` en el registro público para intentar elevar permisos.
 
-Las pruebas reales de la API se encuentran en `test/app.test.js` y se ejecutan con `npm test`.
+## Endpoints
 
-El repositorio mantiene un único archivo de referencia de variables de entorno: `.env.example`; el archivo `.env` local está ignorado por Git.
+### Sesiones y usuarios
 
-## Rutas principales
-
-| Método | Ruta | Descripción |
-| --- | --- | --- |
-| GET | /api/health | Verifica que el servidor esté activo |
-| GET | /api/events | Obtiene eventos |
-| GET | /api/events/:id | Obtiene un evento publicado |
-| GET | /api/sessions | Endpoint base de sesiones |
-| POST | /api/sessions/register | Registro de usuario |
-| POST | /api/sessions/login | Inicio de sesión con JWT en cookie |
-| GET | /api/sessions/current | Devuelve el usuario autenticado |
-| POST | /api/sessions/logout | Cierra la sesión |
-| POST | /api/events | Crea un evento: organizer o admin |
-| PUT | /api/events/:id | Modifica un evento propio: organizer; cualquiera: admin |
-| DELETE | /api/events/:id | Cancela un evento propio: organizer; cualquiera: admin |
-| POST | /api/events/:eid/tickets | Crea una inscripción autenticada |
-| GET | /api/tickets/my-tickets | Lista las inscripciones propias |
-| GET | /api/events/:eid/tickets | Lista tickets: organizer propietario o admin |
-| PATCH | /api/tickets/:tid/cancel | Cancela el ticket propio o uno administrado por admin |
-| GET | /api/users | Lista usuarios: solo admin |
-
-## Roles y autorización
-
-| Acción | user | organizer | admin |
+| Metodo | Ruta | Acceso | Descripcion |
 | --- | --- | --- | --- |
-| Consultar eventos publicados | Sí | Sí | Sí |
-| Crear eventos | No | Sí | Sí |
-| Modificar o cancelar eventos propios | No | Sí | Sí |
-| Modificar cualquier evento | No | No | Sí |
-| Ver todos los usuarios | No | No | Sí |
+| POST | `/api/sessions/register` | Publico | Registra un usuario |
+| POST | `/api/sessions/login` | Publico | Devuelve JWT en cookie `currentUser` |
+| GET | `/api/sessions/current` | Autenticado | Devuelve id, email y rol |
+| POST | `/api/sessions/logout` | Publico | Elimina la cookie |
+| GET | `/api/users` | Admin | Lista usuarios sin password |
 
-Las rutas privadas usan `authMiddleware`, que valida el JWT de `currentUser` y responde `401 No autenticado` si no existe una sesión válida.
+### Eventos
 
-Luego `authorize(...roles)` verifica permisos y responde `403 No tenés permisos para realizar esta acción` cuando el usuario está autenticado pero su rol no alcanza.
+| Metodo | Ruta | Acceso | Descripcion |
+| --- | --- | --- | --- |
+| GET | `/api/events` | Publico | Lista eventos publicados con filtros y paginacion |
+| GET | `/api/events/:id` | Publico | Consulta un evento publicado |
+| POST | `/api/events` | Organizer/Admin | Crea un evento |
+| PUT | `/api/events/:id` | Duenio/Admin | Modifica un evento no cancelado |
+| PATCH | `/api/events/:id/status` | Duenio/Admin | Cambia a `draft`, `published`, `cancelled` o `finished` |
+| DELETE | `/api/events/:id` | Duenio/Admin | Cancela un evento, conservandolo |
 
-El registro público siempre asigna `user`; no acepta crear `organizer` o `admin` desde el body.
+Los eventos requieren `title`, `description`, `category`, `date`, `location`, `capacity` y `price`. La fecha debe ser futura, `capacity` mayor que cero y `price` mayor o igual a cero.
 
-El listado de eventos admite `page`, `limit`, `title`, `location`, `dateFrom`, `dateTo`, `minPrice`, `maxPrice`, `sortBy` y `order=asc|desc` como query parameters. 
+Filtros disponibles: `status`, `category`, `location`, `dateFrom`, `dateTo`, `title`, `minPrice`, `maxPrice`, `page`, `limit`, `sortBy` y `order`.
 
-Por ejemplo:
-
-```text
-GET /api/events?page=2&limit=10&location=Buenos&sortBy=price&order=asc
-```
-
-## Registro
-
-### POST /api/sessions/register
-
-#### Request
-
-```json
-{
-  "first_name": "Ana",
-  "last_name": "Pérez",
-  "email": "Ana@Mail.com",
-  "password": "Secreta123"
-}
-```
-
-#### Response 201
-
-```json
-{
-  "status": "success",
-  "payload": {
-    "_id": "665f2a...",
-    "first_name": "Ana",
-    "last_name": "Pérez",
-    "email": "ana@mail.com",
-    "role": "user",
-    "createdAt": "2026-08-29T00:00:00.000Z",
-    "updatedAt": "2026-08-29T00:00:00.000Z"
-  }
-}
-```
-
-## Login con JWT + cookie
-
-### POST /api/sessions/login
-
-#### Request
-
-```json
-{
-  "email": "ana@mail.com",
-  "password": "Secreta123"
-}
-```
-
-#### Response 200
-
-```json
-{
-  "status": "success",
-  "message": "Login correcto"
-}
-```
-
-La respuesta también incluye la cookie `currentUser` con `httpOnly`, `sameSite: 'lax'`, `maxAge: 3600000` y `secure` sólo en producción.
-
-#### Response 401
-
-```json
-{
-  "status": "error",
-  "message": "Credenciales inválidas"
-}
-```
-
-## Usuario autenticado
-
-### GET /api/sessions/current
-
-#### Response 200
-
-```json
-{
-  "status": "success",
-  "payload": {
-    "id": "665f2a...",
-    "email": "ana@mail.com",
-    "role": "user"
-  }
-}
-```
-
-#### Response 401
-
-```json
-{
-  "status": "error",
-  "message": "No autenticado"
-}
-```
-
-## Logout
-
-### POST /api/sessions/logout
-
-#### Response 200
-
-```json
-{
-  "status": "success",
-  "message": "Sesión cerrada"
-}
-```
-
-## Notas de implementación
-
-- La lógica de hashing vive en `src/utils/hash.js`
-
-- La lógica de JWT vive en `src/utils/jwt.js`
-
-- Passport se inicializa en `src/app.js` y las estrategias se centralizan en `src/config/passport.config.js`.
-
-- `register` valida, normaliza el email, verifica unicidad, aplica bcrypt y asigna el rol `user`.
-
-- `login` valida las credenciales; el controller genera el JWT y configura la cookie HTTP Only.
-
-- `current` valida el JWT de la cookie `currentUser` y expone solamente `id`, `email` y `role`.
-
-- Las rutas delegan la autenticación en Passport y el logout sólo elimina la cookie.
-
-- La estructura permite agregar providers externos como Google o GitHub sin modificar `app.js`.
-
-- La contraseña nunca se devuelve en la respuesta del backend
-
-## Verificación recomendada antes de subir a GitHub
-
-1. Registrar un usuario nuevo
-2. Hacer login y revisar la cookie `currentUser`
-3. Consultar `/api/sessions/current` con la cookie
-4. Confirmar que `/api/sessions/current` responde 401 sin la cookie
-5. Ejecutar logout y confirmar que la cookie se elimina
-
-## Prueba rápida con curl
-
-```bash
-curl -sS -X POST http://localhost:8080/api/sessions/register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "first_name": "Ana",
-    "last_name": "Pérez",
-    "email": "ana@mail.com",
-    "password": "Secreta123"
-  }'
-
-curl -sS -X POST http://localhost:8080/api/sessions/login \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "ana@mail.com",
-    "password": "Secreta123"
-  }'
-
-curl -sS http://localhost:8080/api/sessions/current \
-  -H "Cookie: currentUser=<token>"
-```
-
-## Inscripciones y tickets
-
-Un usuario autenticado puede inscribirse indicando una cantidad en un evento publicado, futuro y con capacidad disponible:
+Ejemplo:
 
 ```http
-POST /api/events/:eid/tickets
-Content-Type: application/json
-Cookie: currentUser=<token>
+GET /api/events?status=published&page=2&limit=5&category=tech&order=asc
 ```
+
+Respuesta:
+
+```json
+{
+  "status": "success",
+  "data": [{ "id": "...", "title": "Congreso Tech", "status": "published" }],
+  "page": 2,
+  "limit": 5,
+  "total": 27,
+  "totalPages": 6
+}
+```
+
+### Inscripciones
+
+| Metodo | Ruta | Acceso | Descripcion |
+| --- | --- | --- | --- |
+| POST | `/api/events/:eid/tickets` | Autenticado | Inscribe al usuario si hay cupo |
+| GET | `/api/tickets/my-tickets` | Autenticado | Lista sus tickets con datos basicos del evento |
+| GET | `/api/events/:eid/tickets` | Duenio/Admin | Lista tickets de un evento |
+| PATCH | `/api/tickets/:tid/cancel` | Duenio/Admin | Cancela sin eliminar y libera cupo |
+
+Solicitud de inscripcion:
 
 ```json
 { "quantity": 1 }
 ```
 
-Cada ticket contiene referencias a `user` y `event`, además de `status`, `quantity`, `reservationCode`, `createdAt` y `cancelledAt`. 
+Solo se puede inscribir en eventos publicados, futuros y con cupos. No se permite otra inscripcion activa del mismo usuario al mismo evento. Los tickets cancelados no ocupan cupo.
 
-Los estados posibles son `confirmed`, `pending` y `cancelled`. 
-
-Un usuario solo puede tener una inscripción activa por evento.
-
-Los tickets cancelados liberan sus cupos y no se eliminan físicamente.
-
-Las confirmaciones se envían mediante Nodemailer cuando están configuradas las variables 
-`MAIL_HOST`, `MAIL_PORT`, `MAIL_USER`, `MAIL_PASS` y `MAIL_FROM`.
-
-Sin configuración SMTP, la inscripción se conserva y el correo se omite con una advertencia de desarrollo.
-
-## Respuesta esperada del servidor
-
-### GET /api/health
+Respuesta `201`:
 
 ```json
 {
-  "status": "ok",
-  "message": "Servidor activo"
-}
-```
-{
   "status": "success",
-  "payload": []
+  "payload": {
+    "id": "...",
+    "event": "...",
+    "user": "...",
+    "quantity": 1,
+    "status": "active",
+    "reservationCode": "..."
+  }
 }
 ```
+
+Luego de crear el ticket, Nodemailer envia un email de confirmacion si SMTP esta configurado.
+
+## Flujo de autenticacion
+
+1. Registrar usuario con `POST /api/sessions/register`.
+2. Iniciar sesion con `POST /api/sessions/login`.
+3. Conservar y enviar la cookie `currentUser` en las rutas privadas.
+4. Consultar `GET /api/sessions/current`.
+5. Cerrar sesion con `POST /api/sessions/logout`.
+
+Passport define las estrategias `register`, `login` y `current`. Las rutas privadas responden `401` sin JWT valido y `403` cuando el rol no tiene permisos.
+
+## Errores HTTP
+
+La API centraliza errores y utiliza `400` para datos invalidos, `401` para falta de autenticacion, `403` para falta de permisos, `404` para recursos inexistentes, `409` para duplicados o conflictos y `500` para errores inesperados.
+
+## Verificacion de la entrega
+
+Desde la raiz del repositorio:
+
+```bash
+npm install
+npm test
+```
+
+La suite comprueba autenticacion, roles, propiedad de eventos, cupos, duplicados, cancelacion y respuestas de error. Para validar el flujo completo con MongoDB y SMTP, seguir los pasos de autenticacion e inscripcion descritos arriba.
+
+## Prueba rapida
+
+```bash
+curl -i -X POST http://localhost:8080/api/sessions/register \
+  -H 'Content-Type: application/json' \
+  -d '{"first_name":"Ana","last_name":"Perez","email":"ana@mail.com","password":"Secreta123"}'
+
+curl -i -c cookies.txt -X POST http://localhost:8080/api/sessions/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"ana@mail.com","password":"Secreta123"}'
+
+curl -i -b cookies.txt http://localhost:8080/api/sessions/current
+```
+
+## Entrega
+
+No subir `.env`, credenciales ni `node_modules`. El repositorio debe incluir `.env.example`, el codigo fuente, las pruebas y esta documentacion.
