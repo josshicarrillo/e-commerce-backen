@@ -10,6 +10,7 @@ import { createHttpError } from '../utils/errors.js';
 
 const sortableFields = new Set(['title', 'date', 'price', 'location', 'createdAt']);
 const eventStatuses = new Set(['draft', 'published', 'cancelled', 'finished']);
+const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 export const getEventsService = async ({ page = 1, limit = 10, ...query } = {}) => {
 	const currentPage = Math.max(Number(page) || 1, 1);
@@ -17,14 +18,17 @@ export const getEventsService = async ({ page = 1, limit = 10, ...query } = {}) 
 	const filter = {};
 	if (query.status) {
 		if (!eventStatuses.has(query.status)) throw createHttpError('Invalid event status');
+		if (query.status !== 'published') {
+			throw createHttpError('Solo se pueden consultar eventos publicados');
+		}
 		filter.status = query.status;
 	} else {
 		filter.status = 'published';
 	}
 
-	if (query.title) filter.title = new RegExp(query.title, 'i');
-	if (query.category) filter.category = new RegExp(query.category, 'i');
-	if (query.location) filter.location = new RegExp(query.location, 'i');
+	if (query.title) filter.title = new RegExp(escapeRegExp(query.title), 'i');
+	if (query.category) filter.category = new RegExp(escapeRegExp(query.category), 'i');
+	if (query.location) filter.location = new RegExp(escapeRegExp(query.location), 'i');
 	if (query.dateFrom || query.dateTo) {
 		filter.date = {};
 		if (query.dateFrom) filter.date.$gte = parseDate(query.dateFrom);

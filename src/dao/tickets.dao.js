@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import TicketModel from '../models/Ticket.js';
 
 const activeStatuses = ['active'];
@@ -9,8 +10,9 @@ export const ticketsDAO = {
     status: { $in: activeStatuses },
   }).lean(),
   countReservedByEvent: async (eventId) => {
+    const eventObjectId = new mongoose.Types.ObjectId(eventId);
     const [result] = await TicketModel.aggregate([
-      { $match: { event: eventId, status: { $in: activeStatuses } } },
+      { $match: { event: eventObjectId, status: { $in: activeStatuses } } },
       { $group: { _id: null, quantity: { $sum: '$quantity' } } },
     ]);
     return result?.quantity || 0;

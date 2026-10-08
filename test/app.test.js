@@ -1,8 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import mongoose from 'mongoose';
 import app from '../src/app.js';
 import { usersRepository } from '../src/repositories/users.repository.js';
 import { eventsDAO } from '../src/dao/events.dao.js';
+import { ticketsDAO } from '../src/dao/tickets.dao.js';
+import TicketModel from '../src/models/Ticket.js';
 import { ticketsRepository } from '../src/repositories/tickets.repository.js';
 import { createTicketService, cancelTicketService } from '../src/services/tickets.service.js';
 import {
@@ -12,7 +15,7 @@ import {
   updateEventService,
 } from '../src/services/events.service.js';
 import { signToken } from '../src/utils/jwt.js';
-import { hashPassword } from '../src/utils/hash.js';
+import { comparePassword, hashPassword } from '../src/utils/hash.js';
 
 const getServer = () => new Promise((resolve) => {
   const server = app.listen(0, () => {
@@ -146,6 +149,46 @@ test('POST /api/sessions/register devuelve 409 ante duplicado detectado por Mong
   }
 });
 
+test('POST /api/sessions/register crea usuario persistible sin exponer la contraseña', async () => {
+  const { server, port } = await getServer();
+  const originalFindByEmail = usersRepository.findByEmail;
+  const originalCreate = usersRepository.create;
+  let createdUser;
+
+  try {
+    usersRepository.findByEmail = async () => null;
+    usersRepository.create = async (userData) => {
+      createdUser = { _id: 'user-456', ...userData };
+      return createdUser;
+    };
+
+    const response = await fetch(`http://localhost:${port}/api/sessions/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        first_name: 'Ana',
+        last_name: 'Pérez',
+        email: ' ANA@MAIL.COM ',
+        password: 'Secreta123',
+        role: 'admin',
+      }),
+    });
+    const payload = await response.json();
+
+    assert.equal(response.status, 201);
+    assert.equal(createdUser.email, 'ana@mail.com');
+    assert.equal(createdUser.role, 'user');
+    assert.notEqual(createdUser.password, 'Secreta123');
+    assert.equal(await comparePassword('Secreta123', createdUser.password), true);
+    assert.equal(payload.payload.password, undefined);
+    assert.equal(payload.payload.email, 'ana@mail.com');
+  } finally {
+    usersRepository.findByEmail = originalFindByEmail;
+    usersRepository.create = originalCreate;
+    server.close();
+  }
+});
+
 test('GET /api/sessions/current devuelve datos del usuario autenticado', async () => {
   const { server, port } = await getServer();
   const token = signToken({ id: 'user-123', email: 'ana@mail.com', role: 'user' });
@@ -264,6 +307,25 @@ test('crear ticket valida evento, cupos y evita duplicados', async () => {
     ticketsRepository.findActiveByUserAndEvent = originalFindActive;
     ticketsRepository.countReservedByEvent = originalCount;
     ticketsRepository.create = originalCreate;
+  }
+});
+
+test('el conteo de cupos usa ObjectId para filtrar tickets activos', async () => {
+  const originalAggregate = TicketModel.aggregate;
+  const eventId = '507f1f77bcf86cd799439020';
+  let aggregation;
+
+  try {
+    TicketModel.aggregate = async (pipeline) => {
+      aggregation = pipeline;
+      return [{ quantity: 2 }];
+    };
+
+    assert.equal(await ticketsDAO.countReservedByEvent(eventId), 2);
+    assert.ok(aggregation[0].$match.event instanceof mongoose.Types.ObjectId);
+    assert.equal(aggregation[0].$match.event.toString(), eventId);
+  } finally {
+    TicketModel.aggregate = originalAggregate;
   }
 });
 
@@ -487,6 +549,21 @@ test('GET /api/events devuelve listado paginado con filtros y orden', async () =
     });
   } finally {
     eventsDAO.findAll = originalFindAll;
+    server.close();
+  }
+});
+
+test('GET /api/events no expone eventos no publicados', async () => {
+  const { server, port } = await getServer();
+
+  try {
+    const response = await fetch(`http://localhost:${port}/api/events?status=draft`);
+    const payload = await response.json();
+
+    assert.equal(response.status, 400);
+    assert.equal(payload.status, 'error');
+    assert.match(payload.message, /Solo se pueden consultar eventos publicados/);
+  } finally {
     server.close();
   }
 });

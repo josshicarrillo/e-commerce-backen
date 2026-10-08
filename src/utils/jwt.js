@@ -8,3 +8,8 @@ export const signToken = (payload) => {
 export const verifyToken = (token) => {
   return jwt.verify(token, config.jwtSecret);
 };
+
+export const getTokenRemainingMs = (token) => {
+  const payload = jwt.decode(token);
+  return Math.max((payload?.exp || 0) * 1000 - Date.now(), 0);
+};

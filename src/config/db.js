@@ -3,8 +3,7 @@ import { config } from './env.js';
 
 export const connectDB = async () => {
   if (!config.mongoUrl) {
-    console.warn('MONGO_URL no está definido. La app arrancará sin conexión a MongoDB.');
-    return false;
+    throw new Error('MONGO_URL no está definido. No se puede iniciar el servidor sin MongoDB.');
   }
 
   try {
@@ -14,7 +13,8 @@ export const connectDB = async () => {
     console.log('Conectado a MongoDB');
     return true;
   } catch (err) {
-    console.error('MongoDB no está disponible. Inicia MongoDB y revisa tu MONGO_URL.', err.message);
-    return false;
+    throw new Error('MongoDB no está disponible. Revisa que esté activo y que MONGO_URL sea correcto.', {
+      cause: err,
+    });
   }
 };

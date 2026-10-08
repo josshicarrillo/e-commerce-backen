@@ -18,7 +18,7 @@ cp .env.example .env
 npm run dev
 ```
 
-Variables requeridas en `.env`:
+Variables de configuración en `.env` (MongoDB y JWT deben estar configurados para iniciar el backend):
 
 ```env
 PORT=8080
@@ -33,7 +33,9 @@ MAIL_PASS=your_mail_password
 MAIL_FROM=no-reply@example.com
 ```
 
-`MAIL_*` permite enviar la confirmacion de inscripcion. Si no se configura SMTP, la inscripcion se guarda y el envio se omite.
+Configura `MAIL_*` con credenciales SMTP válidas para enviar el correo de confirmación de inscripción. El archivo `.env.example` usa valores de ejemplo y no contiene credenciales reales.
+
+El servidor espera a que MongoDB se conecte antes de comenzar a escuchar. Si `MONGO_URL` falta o la conexión falla, el proceso termina con error en lugar de aceptar solicitudes que no pueda persistir. El registro está disponible en `POST /api/sessions/register`; crea el usuario en MongoDB con email normalizado, contraseña hasheada y rol `user`.
 
 ## Comandos
 
@@ -42,6 +44,8 @@ npm start       # inicia el servidor
 npm run dev     # inicia con watch
 npm test        # ejecuta las pruebas
 ```
+
+Para verificar que el registro persiste realmente en MongoDB, configura `MONGO_TEST_URL` con una base de datos aislada para pruebas y ejecuta `npm run test:integration`. La prueba crea un email aleatorio, valida el documento persistido y lo elimina al finalizar. No uses una base de producción.
 
 ## Arquitectura
 
@@ -108,7 +112,7 @@ Luego inicia sesión nuevamente para obtener una cookie JWT con el rol actualiza
 
 Los eventos requieren `title`, `description`, `category`, `date`, `location`, `capacity` y `price`. La fecha debe ser futura, `capacity` mayor que cero y `price` mayor o igual a cero.
 
-Filtros disponibles: `status`, `category`, `location`, `dateFrom`, `dateTo`, `title`, `minPrice`, `maxPrice`, `page`, `limit`, `sortBy` y `order`.
+Filtros disponibles: `status`, `category`, `location`, `dateFrom`, `dateTo`, `title`, `minPrice`, `maxPrice`, `page`, `limit`, `sortBy` y `order`. El listado es público y solo permite consultar eventos `published`; los eventos en borrador, cancelados o finalizados no se exponen desde esta ruta.
 
 Ejemplo:
 
@@ -188,6 +192,8 @@ npm test
 ```
 
 La suite comprueba autenticacion, roles, propiedad de eventos, cupos, duplicados, cancelacion y respuestas de error. Para validar el flujo completo con MongoDB y SMTP, seguir los pasos de autenticacion e inscripcion descritos arriba.
+
+Usa [CHECKLIST_ENTREGA.md](CHECKLIST_ENTREGA.md) para revisar los requisitos funcionales y los pasos finales antes de publicar el repositorio.
 
 ## Prueba rapida
 

@@ -1,4 +1,4 @@
-import { signToken } from '../utils/jwt.js';
+import { getTokenRemainingMs, signToken } from '../utils/jwt.js';
 import { getAllUsers } from '../services/users.service.js';
 import { toAuthenticatedUserDTO, toUserDTO, toUserListDTO } from '../dtos/user.dto.js';
 
@@ -29,7 +29,7 @@ export const loginController = (req, res) => {
   res.cookie('currentUser', token, {
     httpOnly: true,
     sameSite: 'lax',
-    maxAge: 60 * 60 * 1000,
+    maxAge: getTokenRemainingMs(token),
     secure: isProduction,
   });
 

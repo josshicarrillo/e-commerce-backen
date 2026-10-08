@@ -5,16 +5,18 @@ import { config } from './config/env.js';
 const PORT = config.port;
 
 const start = async () => {
-  const connected = await connectDB();
-
-  app.listen(PORT, () => {
-    if (connected) {
+  try {
+    await connectDB();
+    app.listen(PORT, () => {
       console.log(`Servidor activo en http://localhost:${PORT}`);
-      return;
+    });
+  } catch (error) {
+    console.error(`No se pudo iniciar el servidor: ${error.message}`);
+    if (error.cause?.message) {
+      console.error(`Detalle de conexión: ${error.cause.message}`);
     }
-
-    console.log(`Servidor activo en http://localhost:${PORT} sin conexión a MongoDB.`);
-  });
+    process.exitCode = 1;
+  }
 };
 
 start();

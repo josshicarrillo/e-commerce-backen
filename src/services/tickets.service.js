@@ -56,5 +56,6 @@ export const cancelTicketService = async ({ ticketId, userId, isAdmin }) => {
   if (ticket.status === 'cancelled') throw createHttpError('La inscripción ya está cancelada', 400);
 
   const cancelledTicket = await ticketsRepository.cancel(ticketId);
+  if (!cancelledTicket) throw createHttpError('La inscripción ya está cancelada', 409);
   return cancelledTicket;
 };
