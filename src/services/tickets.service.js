@@ -39,7 +39,12 @@ export const createTicketService = async ({ userId, userEmail, eventId, quantity
     reservationCode: randomUUID(),
   });
 
-  await sendTicketConfirmation({ recipient: userEmail, ticket, event });
+  // El ticket ya está persistido: una falla de SMTP no debe invalidar la inscripción.
+  try {
+    await sendTicketConfirmation({ recipient: userEmail, ticket, event });
+  } catch (error) {
+    console.error(`No se pudo enviar el email de confirmación: ${error.message}`);
+  }
   return ticket;
 };
 

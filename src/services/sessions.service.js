@@ -1,6 +1,6 @@
 import { createUser, findUserByEmail } from './users.service.js';
 import { comparePassword, hashPassword } from '../utils/hash.js';
-import { toAuthenticatedUserDTO, toUserDTO } from '../dtos/user.dto.js';
+import { toAuthenticatedUserDTO, toUserDTO } from '../dto/user.dto.js';
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 

@@ -10,3 +10,11 @@ export const authMiddleware = (req, res, next) => {
     return next();
   })(req, res, next);
 };
+
+// Identifica al usuario si hay un JWT válido, pero no bloquea a los anónimos.
+export const optionalAuthMiddleware = (req, res, next) => {
+  passport.authenticate('current', { session: false }, (error, user) => {
+    if (!error && user) req.user = user;
+    return next();
+  })(req, res, next);
+};

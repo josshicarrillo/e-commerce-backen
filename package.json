@@ -1,7 +1,7 @@
 {
   "name": "helen-collection-backend",
   "version": "1.0.0",
-  "description": "Backend para la temática de eventos y colecciones de Helen Collection",
+  "description": "API backend de la plataforma de eventos Helen Collection",
   "main": "src/server.js",
   "type": "module",
   "scripts": {

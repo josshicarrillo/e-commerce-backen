@@ -4,7 +4,7 @@ import {
   getEventTicketsService,
   getMyTicketsService,
 } from '../services/tickets.service.js';
-import { toTicketDTO, toTicketListDTO } from '../dtos/ticket.dto.js';
+import { toTicketDTO, toTicketListDTO } from '../dto/ticket.dto.js';
 
 export const createTicketController = async (req, res, next) => {
   try {

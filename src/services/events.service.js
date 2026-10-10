@@ -12,18 +12,19 @@ const sortableFields = new Set(['title', 'date', 'price', 'location', 'createdAt
 const eventStatuses = new Set(['draft', 'published', 'cancelled', 'finished']);
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-export const getEventsService = async ({ page = 1, limit = 10, ...query } = {}) => {
+export const getEventsService = async ({ page = 1, limit = 10, ...query } = {}, user = null) => {
 	const currentPage = Math.max(Number(page) || 1, 1);
 	const pageSize = Math.min(Math.max(Number(limit) || 10, 1), 100);
-	const filter = {};
-	if (query.status) {
-		if (!eventStatuses.has(query.status)) throw createHttpError('Invalid event status');
-		if (query.status !== 'published') {
-			throw createHttpError('Solo se pueden consultar eventos publicados');
+	const filter = { status: query.status || 'published' };
+	if (!eventStatuses.has(filter.status)) throw createHttpError('Estado de evento inválido');
+	// Los eventos no publicados solo los ven su organizador o un admin.
+	if (filter.status !== 'published') {
+		if (!user) throw createHttpError('Debés iniciar sesión para consultar eventos no publicados', 401);
+		if (user.role === 'organizer') {
+			filter.organizer = user.id;
+		} else if (user.role !== 'admin') {
+			throw createHttpError('Solo organizadores o admins pueden consultar eventos no publicados', 403);
 		}
-		filter.status = query.status;
-	} else {
-		filter.status = 'published';
 	}
 
 	if (query.title) filter.title = new RegExp(escapeRegExp(query.title), 'i');

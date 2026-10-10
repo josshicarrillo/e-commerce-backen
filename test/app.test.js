@@ -453,6 +453,38 @@ test('GET /api/users solo permite el rol admin', async () => {
   }
 });
 
+test('PATCH /api/users/:uid/role solo admin, valida rol y no permite cambiar el propio', async () => {
+  const { server, port } = await getServer();
+  const originalUpdateRole = usersRepository.updateRole;
+  const targetId = '507f1f77bcf86cd799439031';
+  const adminCookie = authCookie({ id: 'admin-123', email: 'admin@mail.com', role: 'admin' });
+  const changeRole = (uid, role, cookie = adminCookie) => fetch(`http://localhost:${port}/api/users/${uid}/role`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Cookie: cookie },
+    body: JSON.stringify({ role }),
+  });
+
+  try {
+    usersRepository.updateRole = async (id, role) => (id === targetId
+      ? { _id: id, email: 'org@mail.com', role }
+      : null);
+
+    const asOrganizer = await changeRole(targetId, 'admin', authCookie({ id: organizerId, email: 'org@mail.com', role: 'organizer' }));
+    assert.equal(asOrganizer.status, 403);
+
+    const ok = await changeRole(targetId, 'organizer');
+    assert.equal(ok.status, 200);
+    assert.equal((await ok.json()).payload.role, 'organizer');
+
+    assert.equal((await changeRole(targetId, 'superadmin')).status, 400);
+    assert.equal((await changeRole('507f1f77bcf86cd799439099', 'organizer')).status, 404);
+    assert.equal((await changeRole('admin-123', 'user')).status, 409);
+  } finally {
+    usersRepository.updateRole = originalUpdateRole;
+    server.close();
+  }
+});
+
 test('organizer no puede modificar un evento ajeno', async () => {
   const { server, port } = await getServer();
   const originalCreate = eventsDAO.create;
@@ -553,17 +585,39 @@ test('GET /api/events devuelve listado paginado con filtros y orden', async () =
   }
 });
 
-test('GET /api/events no expone eventos no publicados', async () => {
+test('GET /api/events restringe eventos no publicados a organizer dueño o admin', async () => {
   const { server, port } = await getServer();
+  const originalFindAll = eventsDAO.findAll;
+  const filters = [];
 
   try {
-    const response = await fetch(`http://localhost:${port}/api/events?status=draft`);
-    const payload = await response.json();
+    eventsDAO.findAll = async (options) => {
+      filters.push(options.filter);
+      return { events: [], total: 0 };
+    };
+    const listDrafts = (user) => fetch(`http://localhost:${port}/api/events?status=draft`, {
+      headers: user ? { Cookie: authCookie(user) } : {},
+    });
 
-    assert.equal(response.status, 400);
-    assert.equal(payload.status, 'error');
-    assert.match(payload.message, /Solo se pueden consultar eventos publicados/);
+    const anonymous = await listDrafts();
+    assert.equal(anonymous.status, 401);
+    assert.equal((await anonymous.json()).status, 'error');
+
+    const asUser = await listDrafts({ id: 'user-1', email: 'user@mail.com', role: 'user' });
+    assert.equal(asUser.status, 403);
+
+    const asOrganizer = await listDrafts({ id: organizerId, email: 'org@mail.com', role: 'organizer' });
+    assert.equal(asOrganizer.status, 200);
+    assert.deepEqual(filters.at(-1), { status: 'draft', organizer: organizerId });
+
+    const asAdmin = await listDrafts({ id: 'admin-1', email: 'admin@mail.com', role: 'admin' });
+    assert.equal(asAdmin.status, 200);
+    assert.deepEqual(filters.at(-1), { status: 'draft' });
+
+    const invalid = await fetch(`http://localhost:${port}/api/events?status=otro`);
+    assert.equal(invalid.status, 400);
   } finally {
+    eventsDAO.findAll = originalFindAll;
     server.close();
   }
 });

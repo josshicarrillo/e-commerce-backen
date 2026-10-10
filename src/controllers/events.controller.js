@@ -6,11 +6,11 @@ import {
   changeEventStatusService,
   updateEventService,
 } from '../services/events.service.js';
-import { toEventDTO, toEventListDTO } from '../dtos/event.dto.js';
+import { toEventDTO, toEventListDTO } from '../dto/event.dto.js';
 
 export const getEventsController = async (req, res, next) => {
   try {
-    const events = await getEventsService(req.query);
+    const events = await getEventsService(req.query, req.user);
     return res.status(200).json({
       status: 'success',
       data: toEventListDTO(events.docs),

@@ -1,6 +1,6 @@
 import { getTokenRemainingMs, signToken } from '../utils/jwt.js';
-import { getAllUsers } from '../services/users.service.js';
-import { toAuthenticatedUserDTO, toUserDTO, toUserListDTO } from '../dtos/user.dto.js';
+import { changeUserRoleService, getAllUsers } from '../services/users.service.js';
+import { toAuthenticatedUserDTO, toUserDTO, toUserListDTO } from '../dto/user.dto.js';
 
 export const getSessionsController = (req, res) => {
   return res.status(200).json({
@@ -13,6 +13,19 @@ export const getUsersController = async (req, res, next) => {
   try {
     const users = await getAllUsers();
     return res.status(200).json({ status: 'success', payload: toUserListDTO(users) });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+export const changeUserRoleController = async (req, res, next) => {
+  try {
+    const user = await changeUserRoleService({
+      userId: req.params.uid,
+      role: req.body?.role,
+      requesterId: req.user.id,
+    });
+    return res.status(200).json({ status: 'success', payload: toUserDTO(user) });
   } catch (error) {
     return next(error);
   }
