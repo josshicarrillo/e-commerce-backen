@@ -439,8 +439,4 @@ Para `test:integration`, definí la variable `MONGO_TEST_URL` apuntando a una ba
 | No llega el email | Revisá las variables `MAIL_*` y la consola del servidor: si falla, aparece `No se pudo enviar el email de confirmación`. |
 | `EADDRINUSE` al levantar | El puerto 8080 está ocupado: cerrá el otro proceso o cambiá `PORT` en `.env`. |
 
-## Antes de subir a GitHub
 
-- **Nunca** subas `.env`, credenciales ni `node_modules/` (ya están en `.gitignore`).
-- Sí subí `.env.example` (con valores de ejemplo), el código, los tests, la colección de Postman y esta documentación.
-- Revisá [CHECKLIST_ENTREGA.md](CHECKLIST_ENTREGA.md) antes de publicar.
