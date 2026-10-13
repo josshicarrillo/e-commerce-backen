@@ -26,7 +26,9 @@ const authenticate = (strategy) => (req, res, next) => {
 };
 
 router.get('/sessions', getSessionsController);
+
 router.get('/users', authMiddleware, authorize('admin'), getUsersController);
+
 router.patch('/users/:uid/role', authMiddleware, authorize('admin'), changeUserRoleController);
 router.post('/sessions/register', authenticate('register'), registerController);
 router.post('/sessions/login', authenticate('login'), loginController);
